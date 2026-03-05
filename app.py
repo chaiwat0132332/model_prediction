@@ -93,8 +93,11 @@ def load_data():
     df_raw = pd.read_csv(file) if file.name.endswith(".csv") else pd.read_excel(file)
     
     if "Date" in df_raw.columns:
-        df_raw["Date"] = pd.to_datetime(df_raw["Date"], errors="coerce")
-   
+    df_raw["Date"] = pd.to_datetime(
+        df_raw["Date"].astype(str),
+        errors="coerce",
+        dayfirst=True
+    )
     # --- ส่วนการพรีวิวและแจ้งเตือนสถิติข้อมูล ---
     st.subheader("📊 ตรวจสอบความสมบูรณ์ของไฟล์")
     
@@ -109,7 +112,7 @@ def load_data():
 
     # 2. พรีวิวข้อมูล 10 แถวแรก
     with st.expander(" ดูตัวอย่างข้อมูล 10 แถวแรก", expanded=True):
-        st.dataframe(df_raw.head(10), use_container_width=True)
+        st.dataframe(df_raw.head(10), width="stretch")
         
         # แสดงรายการ NaN รายคอลัมน์ (ถ้ามี)
         nan_info = df_raw.isnull().sum()
@@ -175,7 +178,7 @@ if mode == " สอนโมเดล (Train)":
     fig.add_trace(go.Scatter(x=df[time_col], y=df[target_col], name="ข้อมูลเดิม", line=dict(color='silver')))
     fig.add_trace(go.Scatter(x=df_clean[time_col], y=df_clean[target_col], name="ข้อมูลที่คลีนแล้ว", line=dict(color='#1f77b4')))
     fig.update_layout(template="plotly_white", title="การเปรียบเทียบข้อมูลก่อนและหลังการเตรียมการ")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     # วิเคราะห์ความสัมพันธ์
     ac = autocorr(df_clean[target_col].values)
@@ -186,12 +189,13 @@ if mode == " สอนโมเดล (Train)":
     # ตั้งค่าการสอน
     st.subheader("⚙️ ตั้งค่าโมเดล")
     model_type = st.selectbox("เลือกประเภทโมเดล", ["linear", "lstm"], format_func=lambda x: "Linear Regression" if x=="linear" else "LSTM (Deep Learning)")
-    default_lag = max(5, min(60, len(df)//10))
+    max_lag = max(2, len(df)-1)
+    default_lag = min(5, max_lag)
     lag = st.number_input(
         "จำนวนข้อมูลย้อนหลังที่ใช้ทาย (Lag)",
-        min_value=5,
-        max_value=len(df)-1,
-        value=default_lag
+        min_value=1,
+        max_value=max_lag,
+         value=default_lag
     )
     if model_type == "lstm":
         c1, c2, c3 = st.columns(3)
