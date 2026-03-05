@@ -92,6 +92,9 @@ def load_data():
     # โหลดไฟล์ต้นฉบับเพื่อตรวจสอบเบื้องต้น
     df_raw = pd.read_csv(file) if file.name.endswith(".csv") else pd.read_excel(file)
     
+    if "Date" in df_raw.columns:
+        df_raw["Date"] = pd.to_datetime(df_raw["Date"], errors="coerce")
+   
     # --- ส่วนการพรีวิวและแจ้งเตือนสถิติข้อมูล ---
     st.subheader("📊 ตรวจสอบความสมบูรณ์ของไฟล์")
     
@@ -183,8 +186,13 @@ if mode == " สอนโมเดล (Train)":
     # ตั้งค่าการสอน
     st.subheader("⚙️ ตั้งค่าโมเดล")
     model_type = st.selectbox("เลือกประเภทโมเดล", ["linear", "lstm"], format_func=lambda x: "Linear Regression" if x=="linear" else "LSTM (Deep Learning)")
-    lag = st.number_input("จำนวนข้อมูลย้อนหลังที่ใช้ทาย (Lag)", 5, len(df)-1, min(60, len(df)//10))
-
+    default_lag = max(5, min(60, len(df)//10))
+    lag = st.number_input(
+        "จำนวนข้อมูลย้อนหลังที่ใช้ทาย (Lag)",
+        min_value=5,
+        max_value=len(df)-1,
+        value=default_lag
+    )
     if model_type == "lstm":
         c1, c2, c3 = st.columns(3)
         epochs = c1.number_input("รอบการสอน (Epochs)", 10, 500, 100)
@@ -335,6 +343,9 @@ elif mode == " พยากรณ์ (Forecast)":
     if st.button("✨ เริ่มพยากรณ์อนาคต"):
         with st.spinner("🤖 AI กำลังประมวลผล..."):
             series = df_clean[target_col].values
+            if len(series) < lag:
+                st.error("ข้อมูลมีน้อยกว่าค่า Lag ที่ตั้งไว้")
+                st.stop()
             last_window = series[-lag:]
             model = artifact["model"]
 
@@ -365,7 +376,7 @@ elif mode == " พยากรณ์ (Forecast)":
             st.plotly_chart(fig_res, use_container_width=True)
 
             if model_type == "lstm":
-                print("is_fitted:", model.is_fitted)
+                st.write("is_fitted:", model.is_fitted)
                 print("device:", next(model.model.parameters()).device)
                 print("scaler min:", model.scaler.data_min_)
                 print("scaler max:", model.scaler.data_max_)
