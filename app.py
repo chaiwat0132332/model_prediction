@@ -93,11 +93,11 @@ def load_data():
     df_raw = pd.read_csv(file) if file.name.endswith(".csv") else pd.read_excel(file)
     
     if "Date" in df_raw.columns:
-    df_raw["Date"] = pd.to_datetime(
-        df_raw["Date"].astype(str),
-        errors="coerce",
-        dayfirst=True
-    )
+        df_raw["Date"] = pd.to_datetime(
+            df_raw["Date"].astype(str),
+            errors="coerce",
+            dayfirst=True
+        )
     # --- ส่วนการพรีวิวและแจ้งเตือนสถิติข้อมูล ---
     st.subheader("📊 ตรวจสอบความสมบูรณ์ของไฟล์")
     
