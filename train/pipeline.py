@@ -1,18 +1,10 @@
-# ==========================================================
-# Training Pipeline (Seq2Seq + Linear Compatible)
-# ==========================================================
-
 import numpy as np
-from sklearn.metrics import r2_score, mean_squared_error
+from sklearn.metrics import mean_squared_error, r2_score
+
 from src.models.factory import create_model
 
 
-# ==========================================================
-# Time-series split (NO SHUFFLE)
-# ==========================================================
-
-def time_series_split(series, lag, test_ratio=0.2):
-
+def time_series_split(series, test_ratio=0.2, lag=1):
     split_index = int(len(series) * (1 - test_ratio))
 
     train_series = series[:split_index]
@@ -20,10 +12,6 @@ def time_series_split(series, lag, test_ratio=0.2):
 
     return train_series, test_series
 
-
-# ==========================================================
-# Main training function
-# ==========================================================
 
 def run_training(
     df,
@@ -34,86 +22,67 @@ def run_training(
     num_layers=None,
     dropout=None,
     epochs=None,
-    forecast_horizon=None
+    batch_size=None,
+    lr=None,
+    forecast_horizon=120,
+    progress_callback=None,
 ):
+    series = df[target_col].astype(float).values
 
-    series = df[target_col].values.astype(np.float32)
+    if len(series) <= lag:
+        raise ValueError("ข้อมูลมีน้อยกว่าค่า lag")
+    if forecast_horizon is None or forecast_horizon <= 0:
+        raise ValueError("forecast_horizon must be > 0")
 
-    train_series, test_series = time_series_split(
-        series,
-        lag=lag,
-        test_ratio=0.2
-    )
+    train_series, test_series = time_series_split(series, test_ratio=0.2, lag=lag)
 
-    # ===============================
-    # Create model
-    # ===============================
     model = create_model(
-        model_type,
+        model_type=model_type,
         hidden_size=hidden_size,
         num_layers=num_layers,
         dropout=dropout,
-        epochs=epochs
+        epochs=epochs,
+        batch_size=batch_size,
+        lr=lr,
+        forecast_horizon=forecast_horizon,
     )
 
-    # ===============================
-    # Train
-    # ===============================
     if model_type == "lstm":
         learning_curve = model.fit(
-            series=train_series,
+            train_series,
             lag=lag,
-            horizon=forecast_horizon
+            horizon=forecast_horizon,
+            progress_callback=progress_callback,
         )
     else:
         learning_curve = None
         model.fit(train_series, lag=lag)
 
-    # ===============================
-    # Safe evaluation
-    # ===============================
-    predictions = []
-    targets = []
-
-    max_i = len(test_series) - lag - forecast_horizon
-
+    max_i = len(test_series) - lag - forecast_horizon + 1
     if max_i <= 0:
-        raise ValueError(
-            "Test set too small for selected lag and forecast_horizon"
-        )
+        raise ValueError("ข้อมูล test ไม่พอสำหรับประเมินผล กรุณาลด lag หรือ forecast_horizon")
+
+    preds = []
+    trues = []
 
     for i in range(max_i):
+        x = test_series[i : i + lag]
+        y_true = test_series[i + lag : i + lag + forecast_horizon]
 
-        input_window = test_series[i:i+lag]
-        true_future = test_series[i+lag:i+lag+forecast_horizon]
+        y_pred = model.forecast(x, steps=forecast_horizon)
 
-        pred_future = model.forecast(
-            input_window,
-            steps=forecast_horizon
-        )
+        preds.append(np.asarray(y_pred).flatten())
+        trues.append(np.asarray(y_true).flatten())
 
-        predictions.append(pred_future)
-        targets.append(true_future)
+    test_pred = np.array(preds)
+    test_true = np.array(trues)
 
-    predictions = np.array(predictions)
-    targets = np.array(targets)
+    y_true_flat = test_true.flatten()
+    y_pred_flat = test_pred.flatten()
 
-    # ===============================
-    # Metrics
-    # ===============================
-    r2 = r2_score(
-        targets.reshape(-1),
-        predictions.reshape(-1)
-    )
+    mse = mean_squared_error(y_true_flat, y_pred_flat)
+    r2 = r2_score(y_true_flat, y_pred_flat)
 
-    mse = mean_squared_error(
-        targets.reshape(-1),
-        predictions.reshape(-1)
-    )
-
-    # ===============================
-    # Artifact
-    # ===============================
     artifact = {
         "model": model,
         "config": {
@@ -123,37 +92,27 @@ def run_training(
             "num_layers": num_layers,
             "dropout": dropout,
             "epochs": epochs,
+            "batch_size": batch_size,
+            "lr": lr,
             "forecast_horizon": forecast_horizon,
-            "train_length": len(train_series)
         },
         "metrics": {
-            "r2": float(r2),
-            "mse": float(mse)
+            "mse": mse,
+            "r2": r2,
         },
-        "test_true": targets.tolist(),
-        "test_pred": predictions.tolist()
+        "test_true": test_true,
+        "test_pred": test_pred,
+        "learning_curve": learning_curve,
     }
-
-    if learning_curve is not None:
-        artifact["learning_curve"] = learning_curve
 
     return artifact
 
 
-# ==========================================================
-# Forecast helper
-# ==========================================================
+def forecast_future(model, series, lag, steps):
+    series = np.asarray(series, dtype=float)
 
-def forecast_future(artifact, series, steps):
+    if len(series) < lag:
+        raise ValueError("ข้อมูลมีน้อยกว่าค่า lag")
 
-    model = artifact["model"]
-    lag = artifact["config"]["lag"]
-
-    last_window = series[-(lag+1):]
-
-    future = model.forecast(
-        last_window,
-        steps
-    )
-
-    return future
+    last_window = series[-lag:]
+    return model.forecast(last_window, steps=steps)
