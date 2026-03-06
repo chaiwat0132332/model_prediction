@@ -191,7 +191,7 @@ if mode == " สอนโมเดล (Train)":
     # ตั้งค่าการสอน
     st.subheader("⚙️ ตั้งค่าโมเดล")
     model_type = st.selectbox("เลือกประเภทโมเดล", ["linear", "lstm"], format_func=lambda x: "Linear Regression" if x=="linear" else "LSTM (Deep Learning)")
-    max_lag = max(1, len(df)-1)
+    max_lag = max(200, len(df)-1)
     default_lag = min(5, max_lag)
     lag = st.number_input(
         "จำนวนข้อมูลย้อนหลังที่ใช้ทาย (Lag)",
@@ -208,7 +208,7 @@ if mode == " สอนโมเดล (Train)":
         epochs = hidden = dropout = None
 
     model_name = st.text_input("ชื่อโมเดล", f"model_{datetime.now().strftime('%H%M%S')}")
-    if len (df_clear) <= lag:
+    if len(df_clean) <= lag:
         st.error("ข้อมูลน้อยกว่าค่า lag ที่ตั้งไว้")
         st.stop()
     if st.button("🚀 เริ่มสอนโมเดล"):
@@ -385,9 +385,7 @@ elif mode == " พยากรณ์ (Forecast)":
 
             if model_type == "lstm":
                 st.write("is_fitted:", model.is_fitted)
-                print("device:", next(model.model.parameters()).device)
-                print("scaler min:", model.scaler.data_min_)
-                print("scaler max:", model.scaler.data_max_)
+                st.write("device:", next(model.model.parameter()).device)
             
             # 7. ส่งออกข้อมูล
             result_df = pd.DataFrame({
