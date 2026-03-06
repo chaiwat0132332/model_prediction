@@ -98,6 +98,8 @@ def load_data():
             errors="coerce",
             dayfirst=True
         )
+    df_raw = df_raw.dropna(subset=["Date"])
+    
     # --- ส่วนการพรีวิวและแจ้งเตือนสถิติข้อมูล ---
     st.subheader("📊 ตรวจสอบความสมบูรณ์ของไฟล์")
     
@@ -189,7 +191,7 @@ if mode == " สอนโมเดล (Train)":
     # ตั้งค่าการสอน
     st.subheader("⚙️ ตั้งค่าโมเดล")
     model_type = st.selectbox("เลือกประเภทโมเดล", ["linear", "lstm"], format_func=lambda x: "Linear Regression" if x=="linear" else "LSTM (Deep Learning)")
-    max_lag = max(2, len(df)-1)
+    max_lag = max(1, len(df)-1)
     default_lag = min(5, max_lag)
     lag = st.number_input(
         "จำนวนข้อมูลย้อนหลังที่ใช้ทาย (Lag)",
@@ -206,7 +208,9 @@ if mode == " สอนโมเดล (Train)":
         epochs = hidden = dropout = None
 
     model_name = st.text_input("ชื่อโมเดล", f"model_{datetime.now().strftime('%H%M%S')}")
-
+    if len (df_clear) <= lag:
+        st.error("ข้อมูลน้อยกว่าค่า lag ที่ตั้งไว้")
+        st.stop()
     if st.button("🚀 เริ่มสอนโมเดล"):
         with st.spinner("🧠 AI กำลังเรียนรู้ข้อมูล..."):
             artifact = run_training(
