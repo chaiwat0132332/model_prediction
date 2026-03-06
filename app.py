@@ -98,7 +98,7 @@ def load_data():
             errors="coerce",
             dayfirst=True
         )
-    df_raw = df_raw.dropna(subset=["Date"])
+        df_raw = df_raw.dropna(subset=["Date"])
     
     # --- ส่วนการพรีวิวและแจ้งเตือนสถิติข้อมูล ---
     st.subheader("📊 ตรวจสอบความสมบูรณ์ของไฟล์")
