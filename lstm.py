@@ -296,41 +296,41 @@ class LSTMModel:
     # Forecast
     # ======================================================
 
-    def forecast(self, last_window, steps):
+   def forecast(self, last_window, steps):
 
-        last_window = np.array(last_window)
+    last_window = np.array(last_window)
 
-        delta = np.diff(last_window)
+    delta = np.diff(last_window)
 
-        if len(delta) < self.lag:
-            pad = np.zeros(self.lag - len(delta))
-            delta = np.concatenate([pad, delta])
+    if len(delta) < self.lag:
 
-        current_seq = delta[-self.lag:].copy()
+        pad = np.zeros(self.lag - len(delta))
 
-        pred_deltas = []
+        delta = np.concatenate([pad, delta])
 
-        self.model.eval()
+    current_seq = delta[-self.lag:].copy()
 
-        with torch.no_grad():
+    pred_deltas = []
 
-            while len(pred_deltas) < steps:
+    self.model.eval()
 
-                seq_scaled = self.scaler_X.transform(
-                    current_seq.reshape(-1,1)
+    with torch.no_grad():
+
+        while len(pred_deltas) < steps:
+
+            seq_scaled = self.scaler_X.transform(
+                current_seq.reshape(-1,1)
             ).reshape(1,self.lag,1)
 
-                seq_tensor = torch.tensor(
-                    seq_scaled,
-                    dtype=torch.float32
+            seq_tensor = torch.tensor(
+                seq_scaled,
+                dtype=torch.float32
             ).to(self.device)
 
-                pred_scaled = self.model(
-                    seq_tensor
-            ).cpu().numpy()[0]
+            pred_scaled = self.model(seq_tensor).cpu().numpy()[0]
 
-                pred = self.scaler_y.inverse_transform(
-                    pred_scaled.reshape(-1,1)
+            pred = self.scaler_y.inverse_transform(
+                pred_scaled.reshape(-1,1)
             ).flatten()
 
             steps_left = steps - len(pred_deltas)
@@ -344,14 +344,18 @@ class LSTMModel:
                 pred[:take]
             ])
 
-        pred_deltas = np.array(pred_deltas)
+    pred_deltas = np.array(pred_deltas)
 
-        value = last_window[-1]
+    value = last_window[-1]
 
-        future = []
+    future = []
 
-        for d in pred_deltas:
-            value = value + d * 0.95
-            future.append(value)
+    decay = 0.98 if steps > 50 else 1.0
 
-        return np.array(future)
+    for d in pred_deltas:
+
+        value = value + d * decay
+
+        future.append(value)
+
+    return np.array(future)
